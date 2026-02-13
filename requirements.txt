@@ -1,0 +1,6 @@
+pandas
+Flask
+click
+Sphinx
+sphinx_rtd_theme
+scikit-learn
