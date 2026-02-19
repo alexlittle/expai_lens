@@ -213,3 +213,5 @@ __marimo__/
 /models/medsynth/tfidf_xgb_pipeline.joblib
 /models/medsynth/runs/
 /runs/*
+/examples/ex0-xgboost-full/tfidf_xgb_pipeline.joblib
+/examples/ex0-xgboost-full/MedSynth_huggingface_final.csv
