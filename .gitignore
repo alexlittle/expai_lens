@@ -209,9 +209,6 @@ __marimo__/
 .idea/
 *.sqlite3
 /expai_lens_logs/
-/data/medsynth
-/models/medsynth/tfidf_xgb_pipeline.joblib
-/models/medsynth/runs/
 /runs/*
 /examples/ex0-xgboost-full/tfidf_xgb_pipeline.joblib
 
