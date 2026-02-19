@@ -7,8 +7,9 @@ from scipy.sparse import spmatrix
 from typing import Any, Dict, List, Tuple
 
 from .explainer_base import ExplainerAdapter
+from expailens.registry.xai_registry import register_xai
 
-
+@register_xai("shap_tree")
 class ShapTreeExplainerAdapter(ExplainerAdapter):
     """
     SHAP Tree Explainer with:

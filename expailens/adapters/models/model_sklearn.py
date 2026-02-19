@@ -1,8 +1,10 @@
 # xai_kit/adapters/model_sklearn.py
 from .model_base import ModelAdapter, ArrayLike
 import numpy as np
-from scipy.sparse import spmatrix
+from expailens.registry.model_registry import register_model
 
+
+@register_model("sklearn")
 class SklearnPipelineAdapter(ModelAdapter):
     def __init__(self, pipeline, class_names=None):
         self.pipeline = pipeline

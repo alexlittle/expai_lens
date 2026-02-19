@@ -8,6 +8,7 @@ from .artifacts import ArtifactStore
 from .adapters.models.model_sklearn import SklearnPipelineAdapter
 from .adapters.explainers.explainer_shap_tree import ShapTreeExplainerAdapter
 from .helpers import make_json_safe
+from ._version import __version__
 
 def publish_run(
     model,                         # trained pipeline/model
@@ -37,7 +38,7 @@ def publish_run(
         "top_k_local": top_k_local,
         "class_names": m.class_names(),
         "feature_count": len(m.feature_names()),
-        "xai_kit_version": "0.1.0",
+        "expailens_version": __version__,
     }
     meta_safe = make_json_safe(meta)
     (run_path / "meta.json").write_text(json.dumps(meta_safe, indent=2))

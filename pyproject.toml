@@ -17,9 +17,7 @@ dependencies = [
     "pandas",
     "scikit-learn",
     "numpy",
-    "seaborn",
     "shap",
-    "matplotlib",
     "joblib",
     "pyarrow",
     "streamlit"
@@ -50,5 +48,9 @@ version = { attr = "expailens._version.__version__" }
 docs = [
     "Sphinx",
     "sphinx_rtd_theme",
+]
+examples = [
+    "seaborn",
+    "matplotlib",
 ]
 
