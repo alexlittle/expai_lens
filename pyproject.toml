@@ -43,6 +43,9 @@ version = { attr = "xaicompare._version.__version__" }
 
 
 [project.optional-dependencies]
+dev = [
+    "pytest",
+]
 docs = [
     "Sphinx",
     "sphinx_rtd_theme",
