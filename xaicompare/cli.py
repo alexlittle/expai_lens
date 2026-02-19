@@ -1,6 +1,5 @@
 
 import typer
-from .runner import publish_run
 
 app = typer.Typer()
 

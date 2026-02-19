@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Tuple
@@ -61,8 +60,8 @@ def load_run(run_dir: str) -> Tuple[dict, pd.DataFrame, pd.DataFrame, pd.DataFra
     p = Path(run_dir)
     meta = json.loads((p / "meta.json").read_text())
     preds = pd.read_parquet(p / "predictions.parquet")
-    global_imp = pd.read_parquet(p / "shap_global.parquet")
-    local = pd.read_parquet(p / "shap_local.parquet")
+    global_imp = pd.read_parquet(p / "shap_tree_global.parquet")
+    local = pd.read_parquet(p / "shap_tree_local.parquet")
     text = pd.read_parquet(p / "text_index.parquet")
     return meta, preds, global_imp, local, text
 
@@ -124,12 +123,28 @@ def main():
     st.dataframe(global_imp.sort_values("mean_abs_importance", ascending=False).head(topN))
 
     st.header("Local explanation")
+
+    # Sample selector
     sid = st.sidebar.number_input("Sample ID", 0, max(0, len(preds) - 1), 0)
-    txt = text.loc[text["sample_id"] == sid, "text"].iloc[0] if "text" in text.columns and (text["sample_id"] == sid).any() else "(no text)"
+
+    # Show text if available
+    if "text" in text.columns and (text["sample_id"] == sid).any():
+        txt = text.loc[text["sample_id"] == sid, "text"].iloc[0]
+    else:
+        txt = "(no text)"
     st.write(txt)
 
+    # Filter local rows for selected sample
     row_local = local[local["sample_id"] == sid].sort_values("abs_value", ascending=False)
-    st.bar_chart(row_local.set_index("feature")["shap_value"])
+
+    # Plot strictly using the standardized 'value' column
+    if row_local.empty or "value" not in row_local.columns:
+        st.info("No local explanation values available for this sample.")
+    else:
+        topN_local = st.sidebar.slider(
+            "Top-N (local)", min_value=5, max_value=100, value=min(20, len(row_local)), step=5
+        )
+        st.bar_chart(row_local.head(topN_local).set_index("feature")["value"])
 
 
 if __name__ == "__main__":

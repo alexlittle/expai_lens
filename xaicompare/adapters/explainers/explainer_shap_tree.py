@@ -1,12 +1,11 @@
 # xaicompare/adapters/explainers/explainer_shap_tree.py
 
-
 import numpy as np
 import shap
 from scipy.sparse import spmatrix
 from typing import Any, Dict, List, Tuple
 
-from .explainer_base import ExplainerAdapter
+from xaicompare.adapters.explainers.explainer_base import ExplainerAdapter
 from xaicompare.registry.xai_registry import register_xai
 
 @register_xai("shap_tree")

@@ -5,18 +5,20 @@ import pandas as pd
 import json, pathlib, time, uuid
 import joblib
 
-from .artifacts import ArtifactStore
-from .helpers import make_json_safe
-from ._version import __version__
+from tqdm.auto import tqdm
 
-# NEW: use registries instead of hard imports
-from .registry.model_registry import get_model_adapter
-from .registry.xai_registry import get_xai_adapter
+from xaicompare.artifacts import ArtifactStore
+from xaicompare.helpers import make_json_safe
+from xaicompare._version import __version__
+
+from xaicompare.registry.model_registry import get_model_adapter
+from xaicompare.registry.xai_registry import get_xai_adapter
+from xaicompare.registry.autodiscover import autodiscover_adapters
 
 
 def publish_run(
-    model,                         # trained pipeline/model
-    X_test,                        # test features (text or vectorized)
+    model,
+    X_test,
     y_test: Optional[Sequence] = None,
     raw_text: Optional[Sequence] = None,
     class_names: Optional[Sequence[str]] = None,
@@ -24,31 +26,59 @@ def publish_run(
     config: Optional[Dict[str, Any]] = None,
     save_model: bool = True,
 
-    # ---- API updates (with backward-compat) ----
-    model_type: str = "sklearn",         # new: registry key for model adapter
-    methods: Optional[List[str]] = None, # new: list of explainer keys
-    method: str = "shap_tree",           # legacy single-method param; still supported
-
+    # registry-driven API
+    model_type: str = "sklearn",
+    xai_methods: Optional[List[str]] = ['shap_tree'],
     top_k_local: int = 15,
 ):
     """
     Universal runner:
-      - dynamic model adapter selection (model_type)
-      - one or many XAI methods (methods / method)
-      - preserves your existing file outputs and meta
+      - model adapter resolution (model_type)
+      - XAI adapter resolution (xai_methods)
+      - consistent artifact generation
+      - tqdm progress bars for user feedback
     """
+
+    # ------------------------------------------------------------------
+    # 0) Ensure registry is populated (recursive autodiscovery)
+    # ------------------------------------------------------------------
+    autodiscover_adapters()
+
     cfg = config or {}
     run_path = pathlib.Path(run_dir)
     run_path.mkdir(parents=True, exist_ok=True)
 
-    # Resolve requested explainer methods (backward compatible)
-    xai_methods = methods if methods is not None else [method]
+    # Progress configuration (can be overridden via config["progress"])
+    pconf = dict(cfg.get("progress", {}))
+    pb_enabled  = bool(pconf.get("enabled", True))
+    pb_leave    = bool(pconf.get("leave", True))
+    pb_position = int(pconf.get("position", 0))
+    xai_desc    = str(pconf.get("xai_desc", "Running XAI methods"))
 
-    # 1) Wrap model via registry
-    ModelAdapter = get_model_adapter(model_type)
-    m = ModelAdapter(model, class_names=class_names)
+    # Helper to optionally wrap iterables with tqdm
+    def pbar(iterable=None, total=None, desc=None):
+        if not pb_enabled:
+            # No progress bar: return iterable directly or a dummy range
+            return iterable if iterable is not None else range(total or 0)
+        return tqdm(
+            iterable=iterable,
+            total=total,
+            desc=desc,
+            leave=pb_leave,
+            position=pb_position,
+            dynamic_ncols=True,
+            mininterval=0.1,
+        )
 
-    # 2) Save model (optional) + meta
+    # ------------------------------------------------------------------
+    # 1) Wrap model using registry
+    # ------------------------------------------------------------------
+    Adapter = get_model_adapter(model_type)
+    m = Adapter(model, class_names=class_names)
+
+    # ------------------------------------------------------------------
+    # 2) Save model + meta
+    # ------------------------------------------------------------------
     if save_model:
         joblib.dump(model, run_path / "model.joblib")
 
@@ -60,11 +90,13 @@ def publish_run(
         "top_k_local": top_k_local,
         "class_names": m.class_names(),
         "feature_count": len(m.feature_names()),
-        "xaicompare_version": __version__,  # keep your project name/version field
+        "xaicompare_version": __version__,
     }
     (run_path / "meta.json").write_text(json.dumps(make_json_safe(meta), indent=2))
 
-    # 3) Predictions (preserve your probability-topk logic)
+    # ------------------------------------------------------------------
+    # 3) Predictions (probabilities + top-k)
+    # ------------------------------------------------------------------
     y_pred = m.predict(X_test)
     proba  = m.predict_proba(X_test)
 
@@ -74,39 +106,60 @@ def publish_run(
     })
 
     if y_test is not None:
-        df_pred["y_true"] = y_test
+        df_pred["y_true"] = list(y_test)
 
     if proba is not None:
-        cls_names = [str(c) for c in m.class_names()] if m.class_names() is not None else [str(i) for i in range(proba.shape[1])]
+        cls_names = (
+            list(map(str, m.class_names()))
+            if m.class_names() is not None
+            else list(map(str, range(proba.shape[1])))
+        )
         topk = 5
         top_idx = np.argsort(-proba, axis=1)[:, :topk]
-        top_cols = []
+        top_json = []
         for i in range(proba.shape[0]):
             row = {cls_names[c]: float(proba[i, c]) for c in top_idx[i]}
-            top_cols.append(json.dumps(row))
-        df_pred["proba_topk_json"] = top_cols
+            top_json.append(json.dumps(row))
+        df_pred["proba_topk_json"] = top_json
 
-    # 4) Run each requested XAI method via registry
+    # ------------------------------------------------------------------
+    # 4) XAI explanations — with progress bars
+    # ------------------------------------------------------------------
     store = ArtifactStore(run_path)
     rows_limit_global = int(cfg.get("rows_limit_global", 200))
     rows_limit_local  = int(cfg.get("rows_limit_local", 200))
 
-    for mth in xai_methods:
+    # Outer bar over methods
+    for mth in pbar(xai_methods, desc=xai_desc):
         Explainer = get_xai_adapter(mth)
         expl = Explainer(m, cfg)
 
-        # Global
+        # ---- Global importance ----
+        # Show a one-step indicator (useful when global explainer is heavy)
+        if pb_enabled:
+            gbar = pbar(total=1, desc=f"[{mth}] Global importance")
+        else:
+            gbar = None
+
         mean_abs, feats = expl.global_importance(X_test, rows_limit=rows_limit_global)
+
+        if gbar is not None:
+            gbar.update(1)
+            gbar.close()
+
         df_global = (
             pd.DataFrame({"feature": feats, "mean_abs_importance": mean_abs})
             .sort_values("mean_abs_importance", ascending=False)
         )
         store.write_parquet(f"{mth}_global.parquet", df_global)
 
-        # Local (top-k)
+        # ---- Local explanations (top-k per sample) ----
         k = min(rows_limit_local, len(df_pred))
         records = []
-        for i in range(k):
+
+        # Wrap the local loop with a progress bar
+        local_iter = pbar(range(k), desc=f"[{mth}] Local explanations")
+        for i in local_iter:
             vals = expl.local_explanations(X_test[i:i+1])  # signed vector
             idx = np.argsort(np.abs(vals))[-top_k_local:][::-1]
             for j in idx:
@@ -114,19 +167,29 @@ def publish_run(
                     "sample_id": i,
                     "feature": feats[j],
                     "value": float(vals[j]),
-                    "abs_value": float(abs(vals[j]))
+                    "abs_value": float(abs(vals[j])),
                 })
+
         df_local = pd.DataFrame.from_records(records)
         store.write_parquet(f"{mth}_local.parquet", df_local)
 
-    # 5) Text index (optional)
-    if raw_text is not None:
-        df_text = pd.DataFrame({"sample_id": np.arange(len(raw_text)), "text": raw_text})
-    else:
-        df_text = pd.DataFrame({"sample_id": df_pred["sample_id"]})
+    # ------------------------------------------------------------------
+    # 5) Text index (adapter-driven with fallback)
+    # ------------------------------------------------------------------
+    df_text = m.build_text_index(
+        X_test=X_test,
+        y_test=y_test,
+        raw_text=raw_text,
+        class_names=class_names
+    )
 
-    # 6) Write artifacts common to all runs
+    store.write_parquet("text_index.parquet", df_text)
+
+    # ------------------------------------------------------------------
+    # 6) Common artifacts
+    # ------------------------------------------------------------------
     store.write_parquet("predictions.parquet", df_pred)
+
     if config:
         (run_path / "config_used.yaml").write_text(_to_yaml(config))
 
