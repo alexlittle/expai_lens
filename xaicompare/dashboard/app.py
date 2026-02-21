@@ -1,8 +1,9 @@
 # xaicompare/dashboard/app.py
+from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from __future__ import annotations
+
 import json
 import sys
 from pathlib import Path

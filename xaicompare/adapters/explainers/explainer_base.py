@@ -1,4 +1,4 @@
-# xai_kit/adapters/explainer_base.py
+# xaicompare/adapters/explainer_base.py
 # SPDX-License-Identifier: MIT
 # Minimal abstract interface for explanation backends (SHAP, LIME, etc.)
 
