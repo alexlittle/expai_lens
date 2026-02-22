@@ -205,22 +205,22 @@ class ShapTreeExplainerAdapter(ExplainerAdapter):
     # LOCAL EXPLANATIONS
     # ----------------------------------------------------------------------
 
-    def local_explanations(self, X_row) -> np.ndarray:
+    def local_explanations(self, x_row) -> np.ndarray:
         """
         Compute SHAP for a single example → return signed vector.
         """
         # Force shape (1, raw_item)
-        if isinstance(X_row, str):
-            X_row = [X_row]
+        if isinstance(x_row, str):
+            x_row = [x_row]
 
-        if isinstance(X_row, np.ndarray) and X_row.ndim == 0:
-            X_row = np.array([X_row])
+        if isinstance(x_row, np.ndarray) and x_row.ndim == 0:
+            x_row = np.array([x_row])
 
         # Vectorize
-        X_vec = self._ensure_vectorized(X_row)
+        x_vec = self._ensure_vectorized(x_row)
 
         sv = self.explainer.shap_values(
-            X_vec,
+            x_vec,
             approximate=self.approx,
             check_additivity=self.check_add
         )
