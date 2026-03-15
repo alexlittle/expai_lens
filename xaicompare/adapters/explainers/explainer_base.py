@@ -1,7 +1,4 @@
 # xaicompare/adapters/explainer_base.py
-# SPDX-License-Identifier: GNU
-# Minimal abstract interface for explanation backends (SHAP, LIME, etc.)
-
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Iterable, List, Sequence, Tuple, Union, Optional
 
@@ -142,25 +139,3 @@ class ExplainerAdapter(ABC):
             )
         return out
 
-
-# -------------------------
-# Optional: no-op explainer
-# -------------------------
-class NoOpExplainerAdapter(ExplainerAdapter):
-    """
-    A placeholder explainer for  tests.
-    It returns zeros for global and local importance with correct shapes.
-    """
-
-    def global_importance(
-        self,
-        X: ArrayLike,
-        rows_limit: int = 200,
-    ) -> Tuple[np.ndarray, List[str]]:
-        feats = self.m.feature_names() if hasattr(self.m, "feature_names") else []
-        mean_abs = np.zeros(len(feats), dtype=np.float64)
-        return mean_abs, list(feats)
-
-    def local_explanations(self, x_row: ArrayLike) -> np.ndarray:
-        feats = self.m.feature_names() if hasattr(self.m, "feature_names") else []
-        return np.zeros(len(feats), dtype=np.float64)

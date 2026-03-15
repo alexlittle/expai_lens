@@ -15,6 +15,7 @@ XAICompare Documentation
    quickstart
    dev/index
    examples/index
+   api/index
 
 To run the dashboard:
 

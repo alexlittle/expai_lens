@@ -21,6 +21,7 @@ from xaicompare.consts import META_INFO_FILENAME
 class XAICompareRunner:
     """
     Orchestrates a full 'publish run':
+
       - Registry autodiscovery
       - Model wrapping via registry
       - Predictions + top-k probabilities
@@ -28,7 +29,8 @@ class XAICompareRunner:
       - Text index
       - Artifact persistence to a run directory
 
-    Usage:
+    Usage::
+
         runner = XAICompareRunner(
             model=my_model,
             x_test=x_test,
